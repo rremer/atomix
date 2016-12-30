@@ -15,7 +15,12 @@
  */
 package io.atomix.collections;
 
+import io.atomix.catalyst.buffer.BufferInput;
+import io.atomix.catalyst.buffer.BufferOutput;
+import io.atomix.catalyst.concurrent.Listener;
+import io.atomix.catalyst.serializer.TypeSerializer;
 import io.atomix.collections.internal.MapCommands;
+import io.atomix.collections.internal.MapEntry;
 import io.atomix.collections.util.DistributedMapFactory;
 import io.atomix.copycat.client.CopycatClient;
 import io.atomix.resource.AbstractResource;
@@ -28,6 +33,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * Stores a map of keys to values.
@@ -61,6 +67,76 @@ import java.util.concurrent.CompletableFuture;
  */
 @ResourceTypeInfo(id=-11, factory=DistributedMapFactory.class)
 public class DistributedMap<K, V> extends AbstractResource<DistributedMap<K, V>> {
+
+  /**
+   * Distributed map event type.
+   */
+  public interface EventType extends io.atomix.resource.EventType {
+  }
+
+  /**
+   * Distributed map events.
+   */
+  public enum Events implements EventType {
+    ADD,
+    UPDATE,
+    REMOVE;
+
+    @Override
+    public int id() {
+      return ordinal();
+    }
+  }
+
+  /**
+   * Entry event.
+   *
+   * @param <K> The entry key.
+   * @param <V> The entry value.
+   */
+  public static class EntryEvent<K, V> implements io.atomix.resource.Event<EventType> {
+    private final EventType type;
+    private final Map.Entry<K, V> entry;
+
+    public EntryEvent(EventType type, Map.Entry<K, V> entry) {
+      this.type = type;
+      this.entry = entry;
+    }
+
+    @Override
+    public EventType type() {
+      return type;
+    }
+
+    /**
+     * Returns the event entry.
+     *
+     * @return The event entry.
+     */
+    public Map.Entry<K, V> entry() {
+      return entry;
+    }
+
+    /**
+     * Entry event serializer.
+     */
+    static class Serializer implements TypeSerializer<EntryEvent<?, ?>> {
+      @Override
+      public void write(EntryEvent<?, ?> event, BufferOutput output, io.atomix.catalyst.serializer.Serializer serializer) {
+        output.writeByte(event.type.id());
+        serializer.writeObject(event.entry.getKey(), output);
+        serializer.writeObject(event.entry.getValue(), output);
+      }
+
+      @Override
+      public EntryEvent<?, ?> read(Class<EntryEvent<?, ?>> type, BufferInput input, io.atomix.catalyst.serializer.Serializer serializer) {
+        EventType eventType = Events.values()[input.readByte()];
+        Object key = serializer.readObject(input);
+        Object value = serializer.readObject(input);
+        return new EntryEvent<>(eventType, new MapEntry<>(key, value));
+      }
+    }
+  }
 
   public DistributedMap(CopycatClient client) {
     this(client, new Options());
@@ -1074,6 +1150,36 @@ public class DistributedMap<K, V> extends AbstractResource<DistributedMap<K, V>>
    */
   public CompletableFuture<Void> clear() {
     return client.submit(new MapCommands.Clear());
+  }
+
+  /**
+   * Registers a {@link #put(Object, Object)} event listener.
+   *
+   * @param callback The put event callback.
+   * @return The event listener context.
+   */
+  public CompletableFuture<Listener<EntryEvent<K, V>>> onAdd(Consumer<EntryEvent<K, V>> callback) {
+    return onEvent(Events.ADD, callback);
+  }
+
+  /**
+   * Registers a {@link #put(Object, Object)} event listener.
+   *
+   * @param callback The put event listener callback.
+   * @return The event listener context.
+   */
+  public CompletableFuture<Listener<EntryEvent<K, V>>> onUpdate(Consumer<EntryEvent<K, V>> callback) {
+    return onEvent(Events.UPDATE, callback);
+  }
+
+  /**
+   * Registers a {@link #remove(Object)} event listener.
+   *
+   * @param callback The remove event listener callback.
+   * @return The event listener context.
+   */
+  public CompletableFuture<Listener<EntryEvent<K, V>>> onRemove(Consumer<EntryEvent<K, V>> callback) {
+    return onEvent(Events.REMOVE, callback);
   }
 
 }

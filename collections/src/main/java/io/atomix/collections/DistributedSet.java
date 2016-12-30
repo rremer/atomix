@@ -15,18 +15,18 @@
  */
 package io.atomix.collections;
 
-import java.time.Duration;
-import java.util.Iterator;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-
 import io.atomix.collections.internal.SetCommands;
 import io.atomix.collections.util.DistributedSetFactory;
 import io.atomix.copycat.client.CopycatClient;
 import io.atomix.resource.AbstractResource;
 import io.atomix.resource.ReadConsistency;
 import io.atomix.resource.ResourceTypeInfo;
+
+import java.time.Duration;
+import java.util.Iterator;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Distributed collection of unique values.
@@ -154,7 +154,7 @@ public class DistributedSet<T> extends AbstractResource<DistributedSet<T>> {
    * @return A CompletableFuture to be completed when the iterator is available
    */
   public CompletableFuture<Iterator<T>> iterator() {
-    return client.submit(new SetCommands.Iterator<T>()).thenApply(keys -> ((Set<T>)keys).iterator());
+    return client.submit(new SetCommands.Iterator<T>()).thenApply(keys -> ((Set<T>) keys).iterator());
   }
 
   /**

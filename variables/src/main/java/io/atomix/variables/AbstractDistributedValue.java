@@ -20,13 +20,12 @@ import io.atomix.copycat.client.CopycatClient;
 import io.atomix.resource.AbstractResource;
 import io.atomix.resource.ReadConsistency;
 import io.atomix.variables.events.ValueChangeEvent;
+import io.atomix.variables.events.ValueEvents;
 import io.atomix.variables.internal.ValueCommands;
 
 import java.time.Duration;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
 /**
@@ -42,27 +41,9 @@ import java.util.function.Consumer;
  */
 @SuppressWarnings("unchecked")
 public abstract class AbstractDistributedValue<T extends AbstractDistributedValue<T, U>, U> extends AbstractResource<T> {
-  private final Set<Consumer<ValueChangeEvent<T>>> changeListeners = new CopyOnWriteArraySet<>();
 
   protected AbstractDistributedValue(CopycatClient client, Properties options) {
     super(client, options);
-  }
-
-  @Override
-  public CompletableFuture<T> open() {
-    return super.open().thenApply(result -> {
-      client.<ValueChangeEvent<T>>onEvent("change", this::onChange);
-      return result;
-    });
-  }
-
-  /**
-   * Handles a value change event.
-   */
-  private void onChange(ValueChangeEvent<T> event) {
-    for (Consumer<ValueChangeEvent<T>> listener : changeListeners) {
-      listener.accept(event);
-    }
   }
 
   /**
@@ -72,26 +53,7 @@ public abstract class AbstractDistributedValue<T extends AbstractDistributedValu
    * @return The change event.
    */
   public synchronized CompletableFuture<Listener<ValueChangeEvent<T>>> onChange(Consumer<ValueChangeEvent<T>> callback) {
-    changeListeners.add(callback);
-    return client.submit(new ValueCommands.Register()).whenComplete((result, error) -> {
-      if (error != null) {
-        changeListeners.remove(callback);
-      }
-    }).thenApply(v -> new Listener<ValueChangeEvent<T>>() {
-      @Override
-      public void accept(ValueChangeEvent<T> event) {
-        callback.accept(event);
-      }
-      @Override
-      public void close() {
-        synchronized (this) {
-          changeListeners.remove(callback);
-          if (changeListeners.isEmpty()) {
-            client.submit(new ValueCommands.Unregister());
-          }
-        }
-      }
-    });
+    return onEvent(ValueEvents.CHANGE, callback);
   }
 
   /**

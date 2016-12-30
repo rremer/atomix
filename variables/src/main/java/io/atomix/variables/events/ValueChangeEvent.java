@@ -19,13 +19,14 @@ import io.atomix.catalyst.buffer.BufferInput;
 import io.atomix.catalyst.buffer.BufferOutput;
 import io.atomix.catalyst.serializer.CatalystSerializable;
 import io.atomix.catalyst.serializer.Serializer;
+import io.atomix.resource.Event;
 
 /**
  * Value change event.
  *
  * @author <a href="http://github.com/kuujo>Jordan Halterman</a>
  */
-public class ValueChangeEvent<T> implements CatalystSerializable {
+public class ValueChangeEvent<T> implements Event<ValueEvent>, CatalystSerializable {
   private T oldValue;
   private T newValue;
 
@@ -35,6 +36,11 @@ public class ValueChangeEvent<T> implements CatalystSerializable {
   public ValueChangeEvent(T oldValue, T newValue) {
     this.oldValue = oldValue;
     this.newValue = newValue;
+  }
+
+  @Override
+  public ValueEvent type() {
+    return ValueEvents.CHANGE;
   }
 
   /**

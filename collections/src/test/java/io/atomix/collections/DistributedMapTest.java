@@ -374,4 +374,41 @@ public class DistributedMapTest extends AbstractCopycatTest<DistributedMap> {
     await(10000);
   }
 
+  /**
+   * Tests various map events.
+   */
+  public void testMapEvents() throws Throwable {
+    createServers(3);
+
+    DistributedMap<String, String> map1 = createResource();
+    DistributedMap<String, String> map2 = createResource();
+
+    map2.onAdd(event -> {
+      threadAssertEquals("foo", event.entry().getKey());
+      threadAssertEquals("bar", event.entry().getValue());
+      resume();
+    }).join();
+
+    map2.onUpdate(event -> {
+      threadAssertEquals("foo", event.entry().getKey());
+      threadAssertEquals("baz", event.entry().getValue());
+      resume();
+    }).join();
+
+    map2.onRemove(event -> {
+      threadAssertEquals("foo", event.entry().getKey());
+      threadAssertEquals("baz", event.entry().getValue());
+      resume();
+    }).join();
+
+    map1.put("foo", "bar").thenRun(this::resume);
+    await(5000, 2);
+
+    map1.put("foo", "baz").thenRun(this::resume);
+    await(5000, 2);
+
+    map1.remove("foo").thenRun(this::resume);
+    await(5000, 2);
+  }
+
 }

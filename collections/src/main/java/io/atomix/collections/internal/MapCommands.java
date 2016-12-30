@@ -22,6 +22,7 @@ import io.atomix.catalyst.serializer.SerializableTypeResolver;
 import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
 import io.atomix.catalyst.util.Assert;
+import io.atomix.collections.events.EntryEvent;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
 
@@ -560,6 +561,7 @@ public class MapCommands {
       registry.register(IsEmpty.class, -75);
       registry.register(Size.class, -76);
       registry.register(Clear.class, -77);
+      registry.register(EntryEvent.class, -78);
     }
   }
 

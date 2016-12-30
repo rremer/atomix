@@ -22,9 +22,10 @@ import io.atomix.copycat.server.StateMachineExecutor;
 import io.atomix.copycat.server.session.ServerSession;
 import io.atomix.copycat.server.session.SessionListener;
 import io.atomix.resource.internal.ResourceCommand;
+import io.atomix.resource.internal.ResourceEvent;
 import io.atomix.resource.internal.ResourceQuery;
 
-import java.util.Properties;
+import java.util.*;
 
 /**
  * Base class for resource state machines.
@@ -110,6 +111,7 @@ import java.util.Properties;
  */
 public abstract class ResourceStateMachine extends StateMachine implements SessionListener {
   protected final Properties config;
+  private final Map<Integer, Set<ServerSession>> eventListeners = new HashMap<>();
 
   protected ResourceStateMachine(Properties config) {
     this.config = Assert.notNull(config, "config");
@@ -121,11 +123,15 @@ public abstract class ResourceStateMachine extends StateMachine implements Sessi
     executor.serializer().register(ResourceQuery.class, -51);
     executor.serializer().register(ResourceQuery.Config.class, -52);
     executor.serializer().register(ResourceCommand.Delete.class, -53);
+    executor.serializer().register(ResourceType.class, -54);
+    executor.serializer().register(ResourceEvent.class, -49);
 
     executor.context().sessions().addListener(this);
 
     ResourceStateMachineExecutor wrappedExecutor = new ResourceStateMachineExecutor(executor);
     wrappedExecutor.register(ResourceQuery.Config.class, this::config);
+    wrappedExecutor.<ResourceCommand.Register>register(ResourceCommand.Register.class, this::register);
+    wrappedExecutor.<ResourceCommand.Unregister>register(ResourceCommand.Unregister.class, this::unregister);
     wrappedExecutor.<ResourceCommand.Delete>register(ResourceCommand.Delete.class, this::delete);
     super.init(wrappedExecutor);
   }
@@ -136,6 +142,20 @@ public abstract class ResourceStateMachine extends StateMachine implements Sessi
 
   @Override
   public void unregister(ServerSession session) {
+  }
+
+  /**
+   * Notifies all subscribed clients of an event.
+   *
+   * @param event The event message.
+   */
+  protected void notify(Event event) {
+    Set<ServerSession> sessions = eventListeners.get(event.type().id());
+    if (sessions != null) {
+      for (ServerSession session : sessions) {
+        session.publish("event", new ResourceEvent(event.type().id(), event));
+      }
+    }
   }
 
   @Override
@@ -154,6 +174,25 @@ public abstract class ResourceStateMachine extends StateMachine implements Sessi
       return config;
     } finally {
       commit.close();
+    }
+  }
+
+  /**
+   * Registers an event listener.
+   */
+  private void register(Commit<ResourceCommand.Register> commit) {
+    Set<ServerSession> sessions = eventListeners.computeIfAbsent(commit.command().event(), k -> new HashSet<>());
+    sessions.add(commit.session());
+  }
+
+  /**
+   * Unregisters an event listener.
+   */
+  private void unregister(Commit<ResourceCommand.Unregister> commit) {
+    Set<ServerSession> sessions = eventListeners.computeIfAbsent(commit.command().event(), k -> new HashSet<>());
+    sessions.remove(commit.session());
+    if (sessions.isEmpty()) {
+      eventListeners.remove(commit.command().event());
     }
   }
 

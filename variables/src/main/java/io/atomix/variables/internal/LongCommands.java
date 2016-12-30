@@ -154,8 +154,6 @@ public final class LongCommands {
       registry.register(AddAndGet.class, -118);
       registry.register(GetAndAdd.class, -119);
       registry.register(ValueChangeEvent.class, -120);
-      registry.register(ValueCommands.Register.class, -121);
-      registry.register(ValueCommands.Unregister.class, -122);
     }
   }
 

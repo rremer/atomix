@@ -15,8 +15,9 @@
  */
 package io.atomix.collections.internal;
 
-import io.atomix.catalyst.util.Assert;
 import io.atomix.catalyst.concurrent.Scheduled;
+import io.atomix.collections.events.EntryEvent;
+import io.atomix.collections.events.MapEvents;
 import io.atomix.copycat.server.Commit;
 import io.atomix.resource.ResourceStateMachine;
 
@@ -100,10 +101,13 @@ public class MapState extends ResourceStateMachine {
         try {
           if (value.timer != null)
             value.timer.cancel();
+          notify(new EntryEvent<>(MapEvents.UPDATE, new MapEntry<>(commit.operation().key, commit.operation().value)));
           return value.commit.operation().value();
         } finally {
           value.commit.close();
         }
+      } else {
+        notify(new EntryEvent<>(MapEvents.ADD, new MapEntry<>(commit.operation().key, commit.operation().value)));
       }
       return null;
     } catch (Exception e) {
@@ -124,6 +128,7 @@ public class MapState extends ResourceStateMachine {
         }) : null;
 
         map.put(commit.operation().key(), new Value(commit, timer));
+        notify(new EntryEvent<>(MapEvents.ADD, new MapEntry<>(commit.operation().key, commit.operation().value)));
         return null;
       } else {
         commit.close();
@@ -145,6 +150,7 @@ public class MapState extends ResourceStateMachine {
         try {
           if (value.timer != null)
             value.timer.cancel();
+          notify(new EntryEvent<>(MapEvents.REMOVE, new MapEntry<>(commit.operation().key, value.commit.command().value)));
           return value.commit.operation().value();
         } finally {
           value.commit.close();
@@ -170,6 +176,7 @@ public class MapState extends ResourceStateMachine {
           map.remove(commit.operation().key());
           if (value.timer != null)
             value.timer.cancel();
+          notify(new EntryEvent<>(MapEvents.REMOVE, new MapEntry<>(commit.operation().key, value.commit.command().value)));
           return true;
         } finally {
           value.commit.close();
@@ -194,6 +201,7 @@ public class MapState extends ResourceStateMachine {
           commit.close();
         }) : null;
         map.put(commit.operation().key(), new Value(commit, timer));
+        notify(new EntryEvent<>(MapEvents.UPDATE, new MapEntry<>(commit.command().key, commit.command().value)));
         return value.commit.operation().value();
       } finally {
         value.commit.close();
@@ -222,6 +230,7 @@ public class MapState extends ResourceStateMachine {
         map.remove(commit.operation().key()).commit.close();
       }) : null;
       map.put(commit.operation().key(), new Value(commit, timer));
+      notify(new EntryEvent<>(MapEvents.UPDATE, new MapEntry<>(commit.command().key, commit.command().value)));
       value.commit.close();
       return true;
     } else {
@@ -263,7 +272,7 @@ public class MapState extends ResourceStateMachine {
     try {
       Set<Map.Entry<Object, Object>> entries = new HashSet<>();
       for (Map.Entry<Object, Value> entry : map.entrySet()) {
-        entries.add(new MapEntry(entry.getKey(), entry.getValue().commit.operation().value()));
+        entries.add(new MapEntry<>(entry.getKey(), entry.getValue().commit.operation().value()));
       }
       return entries;
     } finally {
@@ -298,7 +307,16 @@ public class MapState extends ResourceStateMachine {
    */
   public void clear(Commit<MapCommands.Clear> commit) {
     try {
-      delete();
+      Iterator<Map.Entry<Object, Value>> iterator = map.entrySet().iterator();
+      while (iterator.hasNext()) {
+        Map.Entry<Object, Value> entry = iterator.next();
+        Value value = entry.getValue();
+        if (value.timer != null)
+          value.timer.cancel();
+        notify(new EntryEvent<>(MapEvents.REMOVE, new MapEntry<>(value.commit.command().key, value.commit.command().value)));
+        value.commit.close();
+        iterator.remove();
+      }
     } finally {
       commit.close();
     }
@@ -327,36 +345,6 @@ public class MapState extends ResourceStateMachine {
     private Value(Commit<? extends MapCommands.TtlCommand> commit, Scheduled timer) {
       this.commit = commit;
       this.timer = timer;
-    }
-  }
-
-  /**
-   * Map entry.
-   */
-  private static class MapEntry implements Map.Entry<Object, Object> {
-    private final Object key;
-    private Object value;
-
-    private MapEntry(Object key, Object value) {
-      this.key = Assert.notNull(key, "key");
-      this.value = value;
-    }
-
-    @Override
-    public Object getKey() {
-      return key;
-    }
-
-    @Override
-    public Object getValue() {
-      return value;
-    }
-
-    @Override
-    public Object setValue(Object value) {
-      Object oldValue = this.value;
-      this.value = value;
-      return oldValue;
     }
   }
 
