@@ -15,16 +15,16 @@
  */
 package io.atomix.collections.internal;
 
-import java.util.Set;
-
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
+
+import java.util.Set;
 
 /**
  * Distributed set commands.
@@ -41,25 +41,17 @@ public class SetCommands {
   /**
    * Abstract set command.
    */
-  private static abstract class SetCommand<V> implements Command<V>, CatalystSerializable {
+  private static abstract class SetCommand<V> implements Command<V> {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.QUORUM;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
     }
   }
 
   /**
    * Abstract set query.
    */
-  private static abstract class SetQuery<V> implements Query<V>, CatalystSerializable {
+  private static abstract class SetQuery<V> implements Query<V> {
     protected ConsistencyLevel consistency;
 
     protected SetQuery() {
@@ -70,20 +62,9 @@ public class SetCommands {
     }
 
     @Override
-    public void writeObject(BufferOutput<?> output, Serializer serializer) {
-      if (consistency != null) {
-        output.writeByte(consistency.ordinal());
-      } else {
-        output.writeByte(-1);
-      }
-    }
-
-    @Override
-    public void readObject(BufferInput<?> input, Serializer serializer) {
-      int ordinal = input.readByte();
-      if (ordinal != -1) {
-        consistency = ConsistencyLevel.values()[ordinal];
-      }
+    @JsonGetter("consistency")
+    public ConsistencyLevel consistency() {
+      return null;
     }
   }
 
@@ -93,28 +74,19 @@ public class SetCommands {
   private static abstract class ValueCommand<V> extends SetCommand<V> {
     protected Object value;
 
-    public ValueCommand() {
+    protected ValueCommand() {
     }
 
-    public ValueCommand(Object value) {
+    protected ValueCommand(Object value) {
       this.value = value;
     }
 
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -124,14 +96,14 @@ public class SetCommands {
   private static abstract class ValueQuery<V> extends SetQuery<V> {
     protected Object value;
 
-    public ValueQuery() {
+    protected ValueQuery() {
     }
 
-    public ValueQuery(Object value) {
+    protected ValueQuery(Object value) {
       this.value = value;
     }
 
-    public ValueQuery(Object value, ConsistencyLevel consistency) {
+    protected ValueQuery(Object value, ConsistencyLevel consistency) {
       super(consistency);
       this.value = value;
     }
@@ -139,20 +111,9 @@ public class SetCommands {
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -160,14 +121,16 @@ public class SetCommands {
    * Contains value command.
    */
   public static class Contains extends ValueQuery<Boolean> {
-    public Contains() {
+    Contains() {
     }
 
-    public Contains(Object value) {
+    @JsonCreator
+    public Contains(@JsonProperty("value") Object value) {
       super(value);
     }
 
-    public Contains(Object value, ConsistencyLevel consistency) {
+    @JsonCreator
+    public Contains(@JsonProperty("value") Object value, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(value, consistency);
     }
   }
@@ -196,20 +159,9 @@ public class SetCommands {
      *
      * @return The time to live in milliseconds.
      */
+    @JsonGetter("ttl")
     public long ttl() {
       return ttl;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeLong(ttl);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      ttl = buffer.readLong();
     }
   }
 
@@ -217,14 +169,16 @@ public class SetCommands {
    * Add command.
    */
   public static class Add extends TtlCommand<Boolean> {
-    public Add() {
+    Add() {
     }
 
-    public Add(Object value) {
+    @JsonCreator
+    public Add(@JsonProperty("value") Object value) {
       super(value, 0);
     }
 
-    public Add(Object value, long ttl) {
+    @JsonCreator
+    public Add(@JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(value, ttl);
     }
   }
@@ -233,11 +187,12 @@ public class SetCommands {
    * Remove command.
    */
   public static class Remove extends ValueCommand<Boolean> {
-
+    @JsonCreator
     public Remove() {
     }
 
-    public Remove(Object value) {
+    @JsonCreator
+    public Remove(@JsonProperty("value") Object value) {
       super(value);
     }
 
@@ -251,10 +206,12 @@ public class SetCommands {
    * Size query.
    */
   public static class Size extends SetQuery<Integer> {
+    @JsonCreator
     public Size() {
     }
 
-    public Size(ConsistencyLevel consistency) {
+    @JsonCreator
+    public Size(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -263,10 +220,12 @@ public class SetCommands {
    * Is empty query.
    */
   public static class IsEmpty extends SetQuery<Boolean> {
+    @JsonCreator
     public IsEmpty() {
     }
 
-    public IsEmpty(ConsistencyLevel consistency) {
+    @JsonCreator
+    public IsEmpty(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -293,13 +252,13 @@ public class SetCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(Contains.class, -100);
-      registry.register(Add.class, -101);
-      registry.register(Remove.class, -102);
-      registry.register(IsEmpty.class, -103);
-      registry.register(Size.class, -104);
-      registry.register(Clear.class, -105);
-      registry.register(Iterator.class, -106);
+      registry.register(Contains.class, -100, t -> new GenericKryoSerializer());
+      registry.register(Add.class, -101, t -> new GenericKryoSerializer());
+      registry.register(Remove.class, -102, t -> new GenericKryoSerializer());
+      registry.register(IsEmpty.class, -103, t -> new GenericKryoSerializer());
+      registry.register(Size.class, -104, t -> new GenericKryoSerializer());
+      registry.register(Clear.class, -105, t -> new GenericKryoSerializer());
+      registry.register(Iterator.class, -106, t -> new GenericKryoSerializer());
     }
   }
 

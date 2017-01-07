@@ -15,12 +15,12 @@
  */
 package io.atomix.collections.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.catalyst.util.Assert;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
@@ -42,25 +42,17 @@ public class MultiMapCommands {
   /**
    * Abstract map command.
    */
-  public static abstract class MultiMapCommand<V> implements Command<V>, CatalystSerializable {
+  public static abstract class MultiMapCommand<V> implements Command<V> {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.QUORUM;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
     }
   }
 
   /**
    * Abstract map query.
    */
-  public static abstract class MultiMapQuery<V> implements Query<V>, CatalystSerializable {
+  public static abstract class MultiMapQuery<V> implements Query<V> {
     protected ConsistencyLevel consistency;
 
     protected MultiMapQuery() {
@@ -71,20 +63,9 @@ public class MultiMapCommands {
     }
 
     @Override
-    public void writeObject(BufferOutput<?> output, Serializer serializer) {
-      if (consistency != null) {
-        output.writeByte(consistency.ordinal());
-      } else {
-        output.writeByte(-1);
-      }
-    }
-
-    @Override
-    public void readObject(BufferInput<?> input, Serializer serializer) {
-      int ordinal = input.readByte();
-      if (ordinal != -1) {
-        consistency = ConsistencyLevel.values()[ordinal];
-      }
+    @JsonGetter("consistency")
+    public ConsistencyLevel consistency() {
+      return consistency;
     }
   }
 
@@ -104,18 +85,9 @@ public class MultiMapCommands {
     /**
      * Returns the key.
      */
+    @JsonGetter("key")
     public Object key() {
       return key;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(key, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      key = serializer.readObject(buffer);
     }
   }
 
@@ -140,20 +112,9 @@ public class MultiMapCommands {
     /**
      * Returns the key.
      */
+    @JsonGetter("key")
     public Object key() {
       return key;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(key, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      key = serializer.readObject(buffer);
     }
   }
 
@@ -178,27 +139,16 @@ public class MultiMapCommands {
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
   /**
    * Entry query.
    */
-  public static class EntryQuery<V> extends KeyQuery<V> {
+  public static abstract class EntryQuery<V> extends KeyQuery<V> {
     protected Object value;
 
     protected EntryQuery() {
@@ -219,20 +169,9 @@ public class MultiMapCommands {
      *
      * @return The value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -240,14 +179,16 @@ public class MultiMapCommands {
    * Contains key query.
    */
   public static class ContainsKey extends KeyQuery<Boolean> {
-    public ContainsKey() {
+    ContainsKey() {
     }
 
-    public ContainsKey(Object key) {
+    @JsonCreator
+    public ContainsKey(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public ContainsKey(Object key, ConsistencyLevel consistency) {
+    @JsonCreator
+    public ContainsKey(@JsonProperty("key") Object key, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
     }
   }
@@ -256,14 +197,16 @@ public class MultiMapCommands {
    * Contains entry query.
    */
   public static class ContainsEntry extends EntryQuery<Boolean> {
-    public ContainsEntry() {
+    ContainsEntry() {
     }
 
-    public ContainsEntry(Object key, Object value) {
+    @JsonCreator
+    public ContainsEntry(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       super(key, value);
     }
 
-    public ContainsEntry(Object key, Object value, ConsistencyLevel consistency) {
+    @JsonCreator
+    public ContainsEntry(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, value, consistency);
     }
   }
@@ -272,14 +215,16 @@ public class MultiMapCommands {
    * Contains value query.
    */
   public static class ContainsValue extends ValueQuery<Boolean> {
-    public ContainsValue() {
+    ContainsValue() {
     }
 
-    public ContainsValue(Object value) {
+    @JsonCreator
+    public ContainsValue(@JsonProperty("value") Object value) {
       super(value);
     }
 
-    public ContainsValue(Object value, ConsistencyLevel consistency) {
+    @JsonCreator
+    public ContainsValue(@JsonProperty("value") Object value, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(value, consistency);
     }
   }
@@ -305,20 +250,9 @@ public class MultiMapCommands {
     /**
      * Returns the command value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -328,10 +262,10 @@ public class MultiMapCommands {
   public static abstract class TtlCommand<V> extends EntryCommand<V> {
     protected long ttl;
 
-    public TtlCommand() {
+    protected TtlCommand() {
     }
 
-    public TtlCommand(Object key, Object value, long ttl) {
+    protected TtlCommand(Object key, Object value, long ttl) {
       super(key, value);
       this.ttl = ttl;
     }
@@ -346,20 +280,9 @@ public class MultiMapCommands {
      *
      * @return The time to live in milliseconds.
      */
+    @JsonGetter("ttl")
     public long ttl() {
       return ttl;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeLong(ttl);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      ttl = buffer.readLong();
     }
   }
 
@@ -367,14 +290,16 @@ public class MultiMapCommands {
    * Put command.
    */
   public static class Put extends TtlCommand<Boolean> {
-    public Put() {
+    Put() {
     }
 
-    public Put(Object key, Object value) {
+    @JsonCreator
+    public Put(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       super(key, value, 0);
     }
 
-    public Put(Object key, Object value, long ttl) {
+    @JsonCreator
+    public Put(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value, ttl);
     }
   }
@@ -383,14 +308,16 @@ public class MultiMapCommands {
    * Get query.
    */
   public static class Get extends KeyQuery<Collection> {
-    public Get() {
+    Get() {
     }
 
-    public Get(Object key) {
+    @JsonCreator
+    public Get(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public Get(Object key, ConsistencyLevel consistency) {
+    @JsonCreator
+    public Get(@JsonProperty("key") Object key, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
     }
   }
@@ -399,14 +326,16 @@ public class MultiMapCommands {
    * Remove command.
    */
   public static class Remove extends EntryCommand<Object> {
-    public Remove() {
+    Remove() {
     }
 
-    public Remove(Object key) {
+    @JsonCreator
+    public Remove(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public Remove(Object key, Object value) {
+    @JsonCreator
+    public Remove(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       super(key, value);
     }
 
@@ -422,16 +351,18 @@ public class MultiMapCommands {
   public static class RemoveValue extends MultiMapCommand<Void> {
     private Object value;
 
-    public RemoveValue() {
+    RemoveValue() {
     }
 
-    public RemoveValue(Object value) {
+    @JsonCreator
+    public RemoveValue(@JsonProperty("value") Object value) {
       this.value = value;
     }
 
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
     }
@@ -440,26 +371,18 @@ public class MultiMapCommands {
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
     }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      value = serializer.readObject(buffer);
-    }
   }
 
   /**
    * Is empty query.
    */
   public static class IsEmpty extends MultiMapQuery<Boolean> {
+    @JsonCreator
     public IsEmpty() {
     }
 
-    public IsEmpty(ConsistencyLevel consistency) {
+    @JsonCreator
+    public IsEmpty(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -468,14 +391,17 @@ public class MultiMapCommands {
    * Size query.
    */
   public static class Size extends KeyQuery<Integer> {
+    @JsonCreator
     public Size() {
     }
 
-    public Size(Object key) {
+    @JsonCreator
+    public Size(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public Size(Object key, ConsistencyLevel consistency) {
+    @JsonCreator
+    public Size(@JsonProperty("key") Object key, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
     }
   }
@@ -484,7 +410,6 @@ public class MultiMapCommands {
    * Clear command.
    */
   public static class Clear extends MultiMapCommand<Void> {
-
     @Override
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
@@ -497,16 +422,16 @@ public class MultiMapCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(ContainsKey.class, -80);
-      registry.register(ContainsEntry.class, -81);
-      registry.register(ContainsValue.class, -82);
-      registry.register(Put.class, -83);
-      registry.register(Get.class, -84);
-      registry.register(Remove.class, -85);
-      registry.register(RemoveValue.class, -86);
-      registry.register(IsEmpty.class, -87);
-      registry.register(Size.class, -88);
-      registry.register(Clear.class, -89);
+      registry.register(ContainsKey.class, -80, t -> new GenericKryoSerializer());
+      registry.register(ContainsEntry.class, -81, t -> new GenericKryoSerializer());
+      registry.register(ContainsValue.class, -82, t -> new GenericKryoSerializer());
+      registry.register(Put.class, -83, t -> new GenericKryoSerializer());
+      registry.register(Get.class, -84, t -> new GenericKryoSerializer());
+      registry.register(Remove.class, -85, t -> new GenericKryoSerializer());
+      registry.register(RemoveValue.class, -86, t -> new GenericKryoSerializer());
+      registry.register(IsEmpty.class, -87, t -> new GenericKryoSerializer());
+      registry.register(Size.class, -88, t -> new GenericKryoSerializer());
+      registry.register(Clear.class, -89, t -> new GenericKryoSerializer());
     }
   }
 

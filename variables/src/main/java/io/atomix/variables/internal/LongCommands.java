@@ -15,12 +15,12 @@
  */
 package io.atomix.variables.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 import io.atomix.variables.events.ValueChangeEvent;
 
@@ -37,7 +37,7 @@ public final class LongCommands {
   /**
    * Abstract long command.
    */
-  public static abstract class LongCommand<V> implements Command<V>, CatalystSerializable {
+  public static abstract class LongCommand<V> implements Command<V> {
 
     protected LongCommand() {
     }
@@ -45,14 +45,6 @@ public final class LongCommands {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.SNAPSHOT;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
     }
   }
 
@@ -84,12 +76,12 @@ public final class LongCommands {
    * Delta command.
    */
   public static abstract class DeltaCommand extends LongCommand<Long> {
-    private long delta;
+    protected long delta;
 
-    public DeltaCommand() {
+    protected DeltaCommand() {
     }
 
-    public DeltaCommand(long delta) {
+    protected DeltaCommand(long delta) {
       this.delta = delta;
     }
 
@@ -98,18 +90,9 @@ public final class LongCommands {
      *
      * @return The delta.
      */
+    @JsonGetter("delta")
     public long delta() {
       return delta;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      buffer.writeLong(delta);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      delta = buffer.readLong();
     }
   }
 
@@ -117,10 +100,11 @@ public final class LongCommands {
    * Get and add command.
    */
   public static class GetAndAdd extends DeltaCommand {
-    public GetAndAdd() {
+    GetAndAdd() {
     }
 
-    public GetAndAdd(long delta) {
+    @JsonCreator
+    public GetAndAdd(@JsonProperty("delta") long delta) {
       super(delta);
     }
   }
@@ -129,10 +113,11 @@ public final class LongCommands {
    * Add and get command.
    */
   public static class AddAndGet extends DeltaCommand {
-    public AddAndGet() {
+    AddAndGet() {
     }
 
-    public AddAndGet(long delta) {
+    @JsonCreator
+    public AddAndGet(@JsonProperty("delta") long delta) {
       super(delta);
     }
   }
@@ -143,19 +128,19 @@ public final class LongCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(ValueCommands.CompareAndSet.class, -110);
-      registry.register(ValueCommands.Get.class, -111);
-      registry.register(ValueCommands.GetAndSet.class, -112);
-      registry.register(ValueCommands.Set.class, -113);
-      registry.register(IncrementAndGet.class, -114);
-      registry.register(DecrementAndGet.class, -115);
-      registry.register(GetAndIncrement.class, -116);
-      registry.register(GetAndDecrement.class, -117);
-      registry.register(AddAndGet.class, -118);
-      registry.register(GetAndAdd.class, -119);
-      registry.register(ValueChangeEvent.class, -120);
-      registry.register(ValueCommands.Register.class, -121);
-      registry.register(ValueCommands.Unregister.class, -122);
+      registry.register(ValueCommands.CompareAndSet.class, -110, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Get.class, -111, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.GetAndSet.class, -112, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Set.class, -113, t -> new GenericKryoSerializer());
+      registry.register(IncrementAndGet.class, -114, t -> new GenericKryoSerializer());
+      registry.register(DecrementAndGet.class, -115, t -> new GenericKryoSerializer());
+      registry.register(GetAndIncrement.class, -116, t -> new GenericKryoSerializer());
+      registry.register(GetAndDecrement.class, -117, t -> new GenericKryoSerializer());
+      registry.register(AddAndGet.class, -118, t -> new GenericKryoSerializer());
+      registry.register(GetAndAdd.class, -119, t -> new GenericKryoSerializer());
+      registry.register(ValueChangeEvent.class, -120, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Register.class, -121, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Unregister.class, -122, t -> new GenericKryoSerializer());
     }
   }
 

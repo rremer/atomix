@@ -1,0 +1,10 @@
+io.atomix.server.handlers.CreateResourceHandler$Factory
+io.atomix.server.handlers.CreateSessionHandler$Factory
+io.atomix.server.handlers.DeleteResourceHandler$Factory
+io.atomix.server.handlers.GetResourceHandler$Factory
+io.atomix.server.handlers.GetResourcesHandler$Factory
+io.atomix.server.handlers.KeepAliveHandler$Factory
+io.atomix.server.handlers.ResourceDeleteHandler$Factory
+io.atomix.server.handlers.ResourceGetHandler$Factory
+io.atomix.server.handlers.ResourcePostHandler$Factory
+io.atomix.server.handlers.ResourcePutHandler$Factory

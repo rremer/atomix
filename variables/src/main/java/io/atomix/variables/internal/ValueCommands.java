@@ -15,12 +15,12 @@
  */
 package io.atomix.variables.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
 import io.atomix.variables.events.ValueChangeEvent;
@@ -40,7 +40,7 @@ public class ValueCommands {
   /**
    * Abstract value command.
    */
-  public static abstract class ValueCommand<V> implements Command<V>, CatalystSerializable {
+  public static abstract class ValueCommand<V> implements Command<V> {
     protected long ttl;
 
     protected ValueCommand() {
@@ -60,26 +60,17 @@ public class ValueCommands {
      *
      * @return The time to live in milliseconds.
      */
+    @JsonGetter("ttl")
     public long ttl() {
       return ttl;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      buffer.writeLong(ttl);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      ttl = buffer.readLong();
     }
   }
 
   /**
    * Abstract value query.
    */
-  public static abstract class ValueQuery<V> implements Query<V>, CatalystSerializable {
-    private ConsistencyLevel consistency;
+  public static abstract class ValueQuery<V> implements Query<V> {
+    protected ConsistencyLevel consistency;
 
     protected ValueQuery() {
     }
@@ -89,20 +80,9 @@ public class ValueCommands {
     }
 
     @Override
-    public void writeObject(BufferOutput<?> output, Serializer serializer) {
-      if (consistency != null) {
-        output.writeByte(consistency.ordinal());
-      } else {
-        output.writeByte(-1);
-      }
-    }
-
-    @Override
-    public void readObject(BufferInput<?> input, Serializer serializer) {
-      int ordinal = input.readByte();
-      if (ordinal != -1) {
-        consistency = ConsistencyLevel.values()[ordinal];
-      }
+    @JsonGetter("consistency")
+    public ConsistencyLevel consistency() {
+      return consistency;
     }
   }
 
@@ -110,10 +90,12 @@ public class ValueCommands {
    * Get query.
    */
   public static class Get<T> extends ValueQuery<T> {
+    @JsonCreator
     public Get() {
     }
 
-    public Get(ConsistencyLevel consistency) {
+    @JsonCreator
+    public Get(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -122,16 +104,18 @@ public class ValueCommands {
    * Set command.
    */
   public static class Set<T> extends ValueCommand<T> {
-    private T value;
+    protected T value;
 
-    public Set() {
+    Set() {
     }
 
-    public Set(T value) {
+    @JsonCreator
+    public Set(@JsonProperty("value") T value) {
       this.value = value;
     }
 
-    public Set(T value, long ttl) {
+    @JsonCreator
+    public Set(@JsonProperty("value") T value, @JsonProperty("ttl") long ttl) {
       super(ttl);
       this.value = value;
     }
@@ -141,18 +125,9 @@ public class ValueCommands {
      *
      * @return The command value.
      */
+    @JsonGetter("value")
     public T value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      value = serializer.readObject(buffer);
     }
 
     @Override
@@ -165,18 +140,25 @@ public class ValueCommands {
    * Compare and set command.
    */
   public static class CompareAndSet<T> extends ValueCommand<Boolean> {
-    private T expect;
-    private T update;
+    protected T expect;
+    protected T update;
 
-    public CompareAndSet() {
+    CompareAndSet() {
     }
 
-    public CompareAndSet(T expect, T update) {
+    @JsonCreator
+    public CompareAndSet(
+      @JsonProperty("expect") T expect,
+      @JsonProperty("update") T update) {
       this.expect = expect;
       this.update = update;
     }
 
-    public CompareAndSet(T expect, T update, long ttl) {
+    @JsonCreator
+    public CompareAndSet(
+      @JsonProperty("expect") T expect,
+      @JsonProperty("update") T update,
+      @JsonProperty("ttl") long ttl) {
       super(ttl);
       this.expect = expect;
       this.update = update;
@@ -187,6 +169,7 @@ public class ValueCommands {
      *
      * @return The expected value.
      */
+    @JsonGetter("expect")
     public T expect() {
       return expect;
     }
@@ -196,20 +179,9 @@ public class ValueCommands {
      *
      * @return The updated value.
      */
+    @JsonGetter("update")
     public T update() {
       return update;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(expect, buffer);
-      serializer.writeObject(update, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      expect = serializer.readObject(buffer);
-      update = serializer.readObject(buffer);
     }
 
     @Override
@@ -222,16 +194,18 @@ public class ValueCommands {
    * Get and set command.
    */
   public static class GetAndSet<T> extends ValueCommand<T> {
-    private T value;
+    protected T value;
 
-    public GetAndSet() {
+    GetAndSet() {
     }
 
-    public GetAndSet(T value) {
+    @JsonCreator
+    public GetAndSet(@JsonProperty("value") T value) {
       this.value = value;
     }
 
-    public GetAndSet(T value, long ttl) {
+    @JsonCreator
+    public GetAndSet(@JsonProperty("value") T value, @JsonProperty("ttl") long ttl) {
       super(ttl);
       this.value = value;
     }
@@ -241,18 +215,9 @@ public class ValueCommands {
      *
      * @return The command value.
      */
+    @JsonGetter("value")
     public T value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      value = serializer.readObject(buffer);
     }
 
     @Override
@@ -279,13 +244,13 @@ public class ValueCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(ValueCommands.CompareAndSet.class, -110);
-      registry.register(ValueCommands.Get.class, -111);
-      registry.register(ValueCommands.GetAndSet.class, -112);
-      registry.register(ValueCommands.Set.class, -113);
-      registry.register(ValueChangeEvent.class, -120);
-      registry.register(Register.class, -121);
-      registry.register(Unregister.class, -122);
+      registry.register(ValueCommands.CompareAndSet.class, -110, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Get.class, -111, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.GetAndSet.class, -112, t -> new GenericKryoSerializer());
+      registry.register(ValueCommands.Set.class, -113, t -> new GenericKryoSerializer());
+      registry.register(ValueChangeEvent.class, -120, t -> new GenericKryoSerializer());
+      registry.register(Register.class, -121, t -> new GenericKryoSerializer());
+      registry.register(Unregister.class, -122, t -> new GenericKryoSerializer());
     }
   }
 

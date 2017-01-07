@@ -39,9 +39,9 @@ import java.util.stream.Collectors;
  * @author <a href="http://github.com/kuujo">Jordan Halterman</a>
  */
 public class ResourceManagerState extends StateMachine implements SessionListener, Snapshottable {
-  private StateMachineExecutor executor;
-  private final Map<String, Long> keys = new HashMap<>();
-  private final Map<Long, ResourceHolder> resources = new HashMap<>();
+  protected StateMachineExecutor executor;
+  protected final Map<String, Long> keys = new HashMap<>();
+  protected final Map<Long, ResourceHolder> resources = new HashMap<>();
   private final ResourceManagerCommitPool commits = new ResourceManagerCommitPool();
 
   @Override
@@ -213,6 +213,9 @@ public class ResourceManagerState extends StateMachine implements SessionListene
       resource.stateMachine.delete();
       resource.executor.close();
 
+      // Release the commit that created the resource.
+      resource.commit.release();
+
       keys.remove(resource.key);
       return true;
     } finally {
@@ -267,13 +270,13 @@ public class ResourceManagerState extends StateMachine implements SessionListene
   /**
    * Resource holder.
    */
-  private static class ResourceHolder {
-    private final long id;
-    private final String key;
-    private final ResourceType type;
-    private final Commit<? extends GetResource> commit;
-    private final ResourceStateMachine stateMachine;
-    private final ResourceManagerStateMachineExecutor executor;
+  protected static class ResourceHolder {
+    public final long id;
+    public final String key;
+    public final ResourceType type;
+    public final Commit<? extends GetResource> commit;
+    public final ResourceStateMachine stateMachine;
+    public final ResourceManagerStateMachineExecutor executor;
 
     private ResourceHolder(long id, String key, ResourceType type, Commit<? extends GetResource> commit, ResourceStateMachine stateMachine, ResourceManagerStateMachineExecutor executor) {
       this.id = id;
@@ -282,19 +285,6 @@ public class ResourceManagerState extends StateMachine implements SessionListene
       this.commit = commit;
       this.stateMachine = stateMachine;
       this.executor = executor;
-    }
-  }
-
-  /**
-   * Session holder.
-   */
-  private static class SessionHolder {
-    private final Commit commit;
-    private final ManagedResourceSession session;
-
-    private SessionHolder(Commit commit, ManagedResourceSession session) {
-      this.commit = commit;
-      this.session = session;
     }
   }
 

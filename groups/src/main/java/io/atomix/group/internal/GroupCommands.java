@@ -15,12 +15,12 @@
  */
 package io.atomix.group.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Operation;
 import io.atomix.copycat.Query;
@@ -44,14 +44,7 @@ public final class GroupCommands {
   /**
    * Group operation.
    */
-  public static abstract class GroupOperation<V> implements Operation<V>, CatalystSerializable {
-    @Override
-    public void writeObject(BufferOutput<?> bufferOutput, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> bufferInput, Serializer serializer) {
-    }
+  public static abstract class GroupOperation<V> implements Operation<V> {
   }
 
   /**
@@ -72,30 +65,9 @@ public final class GroupCommands {
      *
      * @return The member ID.
      */
+    @JsonGetter("member")
     public String member() {
       return member;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeString(member);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      member = buffer.readString();
-    }
-  }
-
-  /**
-   * Abstract group command.
-   */
-  public static abstract class GroupCommand<V> extends GroupOperation<V> implements Command<V> {
-    @Override
-    public CompactionMode compaction() {
-      return CompactionMode.QUORUM;
     }
   }
 
@@ -103,10 +75,10 @@ public final class GroupCommands {
    * Member command.
    */
   public static abstract class MemberCommand<V> extends MemberOperation<V> implements Command<V> {
-    public MemberCommand() {
+    protected MemberCommand() {
     }
 
-    public MemberCommand(String member) {
+    protected MemberCommand(String member) {
       super(member);
     }
 
@@ -120,11 +92,11 @@ public final class GroupCommands {
    * Group member query.
    */
   public static abstract class MemberQuery<V> extends MemberOperation<V> implements Query<V> {
-    public MemberQuery(String member) {
+    protected MemberQuery(String member) {
       super(member);
     }
 
-    public MemberQuery() {
+    protected MemberQuery() {
     }
   }
 
@@ -135,10 +107,11 @@ public final class GroupCommands {
     private boolean persist;
     private Object metadata;
 
-    public Join() {
+    Join() {
     }
 
-    public Join(String member, boolean persist, Object metadata) {
+    @JsonCreator
+    public Join(@JsonProperty("member") String member, @JsonProperty("persist") boolean persist, @JsonProperty("metadata") Object metadata) {
       super(member);
       this.persist = persist;
       this.metadata = metadata;
@@ -149,6 +122,7 @@ public final class GroupCommands {
      *
      * @return Whether the member is persistent.
      */
+    @JsonGetter("persist")
     public boolean persist() {
       return persist;
     }
@@ -158,22 +132,9 @@ public final class GroupCommands {
      *
      * @return The member metadata.
      */
+    @JsonGetter("metadata")
     public Object metadata() {
       return metadata;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeBoolean(persist);
-      serializer.writeObject(metadata, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      persist = buffer.readBoolean();
-      metadata = serializer.readObject(buffer);
     }
   }
 
@@ -181,10 +142,11 @@ public final class GroupCommands {
    * Leave command.
    */
   public static class Leave extends MemberCommand<Void> {
-    public Leave() {
+    Leave() {
     }
 
-    public Leave(String member) {
+    @JsonCreator
+    public Leave(@JsonProperty("member") String member) {
       super(member);
     }
 
@@ -198,10 +160,12 @@ public final class GroupCommands {
    * List command.
    */
   public static class Listen extends MemberCommand<GroupStatus> {
+    @JsonCreator
     public Listen() {
     }
 
-    public Listen(String member) {
+    @JsonCreator
+    public Listen(@JsonProperty("member") String member) {
       super(member);
     }
 
@@ -214,79 +178,34 @@ public final class GroupCommands {
   /**
    * Group status.
    */
-  public static class GroupStatus implements CatalystSerializable {
+  public static class GroupStatus {
     private long term;
     private String leader;
     private Set<GroupMemberInfo> members;
 
-    public GroupStatus() {
+    GroupStatus() {
     }
 
-    public GroupStatus(long term, String leader, Set<GroupMemberInfo> members) {
+    @JsonCreator
+    public GroupStatus(@JsonProperty("term") long term, @JsonProperty("leader") String leader, @JsonProperty("members") Set<GroupMemberInfo> members) {
       this.term = term;
       this.leader = leader;
       this.members = members;
     }
 
+    @JsonGetter("term")
     public long term() {
       return term;
     }
 
+    @JsonGetter("leader")
     public String leader() {
       return leader;
     }
 
+    @JsonGetter("members")
     public Set<GroupMemberInfo> members() {
       return members;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      buffer.writeLong(term).writeString(leader);
-      serializer.writeObject(members, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      term = buffer.readLong();
-      leader = buffer.readString();
-      members = serializer.readObject(buffer);
-    }
-  }
-
-  /**
-   * Property command.
-   */
-  public static abstract class PropertyCommand<T> extends MemberCommand<T> {
-    private String property;
-
-    protected PropertyCommand() {
-    }
-
-    protected PropertyCommand(String member, String property) {
-      super(member);
-      this.property = property;
-    }
-
-    /**
-     * Returns the property name.
-     *
-     * @return The property name.
-     */
-    public String property() {
-      return property;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeString(property);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      property = buffer.readString();
     }
   }
 
@@ -301,10 +220,18 @@ public final class GroupCommands {
     private MessageProducer.Delivery delivery;
     private MessageProducer.Execution execution;
 
-    public Message() {
+    Message() {
     }
 
-    public Message(String member, int producer, String queue, long id, Object message, MessageProducer.Delivery delivery, MessageProducer.Execution execution) {
+    @JsonCreator
+    public Message(
+      @JsonProperty("member") String member,
+      @JsonProperty("producer") int producer,
+      @JsonProperty("queue") String queue,
+      @JsonProperty("id") long id,
+      @JsonProperty("message") Object message,
+      @JsonProperty("delivery") MessageProducer.Delivery delivery,
+      @JsonProperty("execution") MessageProducer.Execution execution) {
       super(member);
       this.producer = producer;
       this.queue = queue;
@@ -319,6 +246,7 @@ public final class GroupCommands {
      *
      * @return The producer ID.
      */
+    @JsonGetter("producer")
     public int producer() {
       return producer;
     }
@@ -328,6 +256,7 @@ public final class GroupCommands {
      *
      * @return The message queue name.
      */
+    @JsonGetter("queue")
     public String queue() {
       return queue;
     }
@@ -337,6 +266,7 @@ public final class GroupCommands {
      *
      * @return The message ID.
      */
+    @JsonGetter("id")
     public long id() {
       return id;
     }
@@ -346,6 +276,7 @@ public final class GroupCommands {
      *
      * @return The message.
      */
+    @JsonGetter("message")
     public Object message() {
       return message;
     }
@@ -355,6 +286,7 @@ public final class GroupCommands {
      *
      * @return The message delivery policy.
      */
+    @JsonGetter("delivery")
     public MessageProducer.Delivery delivery() {
       return delivery;
     }
@@ -364,30 +296,9 @@ public final class GroupCommands {
      *
      * @return The message execution policy.
      */
+    @JsonGetter("execution")
     public MessageProducer.Execution execution() {
       return execution;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeUnsignedShort(producer);
-      buffer.writeString(queue);
-      buffer.writeLong(id);
-      buffer.writeByte(delivery.ordinal());
-      buffer.writeByte(execution.ordinal());
-      serializer.writeObject(message, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      producer = buffer.readUnsignedShort();
-      queue = buffer.readString();
-      id = buffer.readLong();
-      delivery = MessageProducer.Delivery.values()[buffer.readByte()];
-      execution = MessageProducer.Execution.values()[buffer.readByte()];
-      message = serializer.readObject(buffer);
     }
   }
 
@@ -400,10 +311,16 @@ public final class GroupCommands {
     private boolean succeeded;
     private Object message;
 
-    public Reply() {
+    Reply() {
     }
 
-    public Reply(String member, String queue, long id, boolean succeeded, Object message) {
+    @JsonCreator
+    public Reply(
+      @JsonProperty("member") String member,
+      @JsonProperty("queue") String queue,
+      @JsonProperty("id") long id,
+      @JsonProperty("succeeded") boolean succeeded,
+      @JsonProperty("message") Object message) {
       super(member);
       this.queue = queue;
       this.id = id;
@@ -416,6 +333,7 @@ public final class GroupCommands {
      *
      * @return The queue name.
      */
+    @JsonGetter("queue")
     public String queue() {
       return queue;
     }
@@ -425,6 +343,7 @@ public final class GroupCommands {
      *
      * @return The message ID.
      */
+    @JsonGetter("id")
     public long id() {
       return id;
     }
@@ -434,6 +353,7 @@ public final class GroupCommands {
      *
      * @return Whether the reply succeeded.
      */
+    @JsonGetter("succeeded")
     public boolean succeeded() {
       return succeeded;
     }
@@ -443,26 +363,9 @@ public final class GroupCommands {
      *
      * @return The reply message.
      */
+    @JsonGetter("message")
     public Object message() {
       return message;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeString(queue);
-      buffer.writeLong(id);
-      buffer.writeBoolean(succeeded);
-      serializer.writeObject(message, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      queue = buffer.readString();
-      id = buffer.readLong();
-      succeeded = buffer.readBoolean();
-      message = serializer.readObject(buffer);
     }
   }
 
@@ -476,10 +379,17 @@ public final class GroupCommands {
     private boolean succeeded;
     private Object message;
 
-    public Ack() {
+    Ack() {
     }
 
-    public Ack(String member, int producer, String queue, long id, boolean succeeded, Object message) {
+    @JsonCreator
+    public Ack(
+      @JsonProperty("member") String member,
+      @JsonProperty("producer") int producer,
+      @JsonProperty("queue") String queue,
+      @JsonProperty("id") long id,
+      @JsonProperty("succeeded") boolean succeeded,
+      @JsonProperty("message") Object message) {
       super(member);
       this.producer = producer;
       this.queue = queue;
@@ -493,6 +403,7 @@ public final class GroupCommands {
      *
      * @return The producer ID.
      */
+    @JsonGetter("producer")
     public int producer() {
       return producer;
     }
@@ -502,6 +413,7 @@ public final class GroupCommands {
      *
      * @return The queue name.
      */
+    @JsonGetter("queue")
     public String queue() {
       return queue;
     }
@@ -511,6 +423,7 @@ public final class GroupCommands {
      *
      * @return The message ID.
      */
+    @JsonGetter("id")
     public long id() {
       return id;
     }
@@ -520,6 +433,7 @@ public final class GroupCommands {
      *
      * @return Whether the message succeeded.
      */
+    @JsonGetter("succeeded")
     public boolean succeeded() {
       return succeeded;
     }
@@ -529,28 +443,9 @@ public final class GroupCommands {
      *
      * @return The reply message.
      */
+    @JsonGetter("message")
     public Object message() {
       return message;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeUnsignedShort(producer);
-      buffer.writeString(queue);
-      buffer.writeLong(id);
-      buffer.writeBoolean(succeeded);
-      serializer.writeObject(message, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      producer = buffer.readUnsignedShort();
-      queue = buffer.readString();
-      id = buffer.readLong();
-      succeeded = buffer.readBoolean();
-      message = serializer.readObject(buffer);
     }
   }
 
@@ -560,15 +455,15 @@ public final class GroupCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(Join.class, -130);
-      registry.register(Leave.class, -131);
-      registry.register(Listen.class, -132);
-      registry.register(Message.class, -137);
-      registry.register(Reply.class, -138);
-      registry.register(Ack.class, -139);
-      registry.register(GroupMessage.class, -140);
-      registry.register(GroupMemberInfo.class, -158);
-      registry.register(GroupStatus.class, -159);
+      registry.register(Join.class, -130, t -> new GenericKryoSerializer());
+      registry.register(Leave.class, -131, t -> new GenericKryoSerializer());
+      registry.register(Listen.class, -132, t -> new GenericKryoSerializer());
+      registry.register(Message.class, -137, t -> new GenericKryoSerializer());
+      registry.register(Reply.class, -138, t -> new GenericKryoSerializer());
+      registry.register(Ack.class, -139, t -> new GenericKryoSerializer());
+      registry.register(GroupMessage.class, -140, t -> new GenericKryoSerializer());
+      registry.register(GroupMemberInfo.class, -158, t -> new GenericKryoSerializer());
+      registry.register(GroupStatus.class, -159, t -> new GenericKryoSerializer());
     }
   }
 

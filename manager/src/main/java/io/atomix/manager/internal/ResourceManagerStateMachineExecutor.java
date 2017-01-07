@@ -41,7 +41,7 @@ import java.util.function.Supplier;
  *
  * @author <a href="http://github.com/kuujo>Jordan Halterman</a>
  */
-class ResourceManagerStateMachineExecutor implements StateMachineExecutor {
+public class ResourceManagerStateMachineExecutor implements StateMachineExecutor {
   final StateMachineExecutor parent;
   final ResourceManagerStateMachineContext context;
   private final Logger logger;
@@ -88,7 +88,7 @@ class ResourceManagerStateMachineExecutor implements StateMachineExecutor {
    * Executes the given commit on the state machine.
    */
   @SuppressWarnings("unchecked")
-  <T extends Operation<U>, U> U execute(Commit<T> commit) {
+  public <T extends Operation<U>, U> U execute(Commit<T> commit) {
     // Get the function registered for the operation. If no function is registered, attempt to
     // use a global function if available.
     Function function = operations.get(commit.type());

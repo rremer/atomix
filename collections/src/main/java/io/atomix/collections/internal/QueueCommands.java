@@ -15,12 +15,12 @@
  */
 package io.atomix.collections.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
 
@@ -39,25 +39,17 @@ public class QueueCommands {
   /**
    * Abstract queue command.
    */
-  private static abstract class QueueCommand<V> implements Command<V>, CatalystSerializable {
+  private static abstract class QueueCommand<V> implements Command<V> {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.QUORUM;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
     }
   }
 
   /**
    * Abstract queue query.
    */
-  private static abstract class QueueQuery<V> implements Query<V>, CatalystSerializable {
+  private static abstract class QueueQuery<V> implements Query<V> {
     protected ConsistencyLevel consistency;
 
     protected QueueQuery() {
@@ -68,20 +60,9 @@ public class QueueCommands {
     }
 
     @Override
-    public void writeObject(BufferOutput<?> output, Serializer serializer) {
-      if (consistency != null) {
-        output.writeByte(consistency.ordinal());
-      } else {
-        output.writeByte(-1);
-      }
-    }
-
-    @Override
-    public void readObject(BufferInput<?> input, Serializer serializer) {
-      int ordinal = input.readByte();
-      if (ordinal != -1) {
-        consistency = ConsistencyLevel.values()[ordinal];
-      }
+    @JsonGetter("consistency")
+    public ConsistencyLevel consistency() {
+      return consistency;
     }
   }
 
@@ -101,18 +82,9 @@ public class QueueCommands {
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -137,20 +109,9 @@ public class QueueCommands {
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -158,14 +119,16 @@ public class QueueCommands {
    * Contains value command.
    */
   public static class Contains extends ValueQuery<Boolean> {
-    public Contains() {
+    Contains() {
     }
 
-    public Contains(Object value) {
+    @JsonCreator
+    public Contains(@JsonProperty("value") Object value) {
       super(value);
     }
 
-    public Contains(Object value, ConsistencyLevel consistency) {
+    @JsonCreator
+    public Contains(@JsonProperty("value") Object value, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(value, consistency);
     }
   }
@@ -174,10 +137,11 @@ public class QueueCommands {
    * Add command.
    */
   public static class Add extends ValueCommand<Boolean> {
-    public Add() {
+    Add() {
     }
 
-    public Add(Object value) {
+    @JsonCreator
+    public Add(@JsonProperty("value") Object value) {
       super(value);
     }
   }
@@ -186,10 +150,11 @@ public class QueueCommands {
    * Offer
    */
   public static class Offer extends ValueCommand<Boolean> {
-    public Offer() {
+    Offer() {
     }
 
-    public Offer(Object value) {
+    @JsonCreator
+    public Offer(@JsonProperty("value") Object value) {
       super(value);
     }
   }
@@ -204,7 +169,6 @@ public class QueueCommands {
    * Poll command.
    */
   public static class Poll extends QueueCommand<Object> {
-
     @Override
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
@@ -215,7 +179,6 @@ public class QueueCommands {
    * Element command.
    */
   public static class Element extends QueueCommand<Object> {
-
     @Override
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
@@ -226,10 +189,12 @@ public class QueueCommands {
    * Remove command.
    */
   public static class Remove extends ValueCommand<Object> {
+    @JsonCreator
     public Remove() {
     }
 
-    public Remove(Object value) {
+    @JsonCreator
+    public Remove(@JsonProperty("value") Object value) {
       super(value);
     }
 
@@ -243,10 +208,12 @@ public class QueueCommands {
    * Size query.
    */
   public static class Size extends QueueQuery<Integer> {
+    @JsonCreator
     public Size() {
     }
 
-    public Size(ConsistencyLevel consistency) {
+    @JsonCreator
+    public Size(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -255,10 +222,12 @@ public class QueueCommands {
    * Is empty query.
    */
   public static class IsEmpty extends QueueQuery<Boolean> {
+    @JsonCreator
     public IsEmpty() {
     }
 
-    public IsEmpty(ConsistencyLevel consistency) {
+    @JsonCreator
+    public IsEmpty(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -267,7 +236,6 @@ public class QueueCommands {
    * Clear command.
    */
   public static class Clear extends QueueCommand<Void> {
-
     @Override
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
@@ -280,16 +248,16 @@ public class QueueCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(Contains.class, -90);
-      registry.register(Add.class, -91);
-      registry.register(Offer.class, -92);
-      registry.register(Peek.class, -93);
-      registry.register(Poll.class, -94);
-      registry.register(Element.class, -95);
-      registry.register(Remove.class, -96);
-      registry.register(IsEmpty.class, -97);
-      registry.register(Size.class, -98);
-      registry.register(Clear.class, -99);
+      registry.register(Contains.class, -90, t -> new GenericKryoSerializer());
+      registry.register(Add.class, -91, t -> new GenericKryoSerializer());
+      registry.register(Offer.class, -92, t -> new GenericKryoSerializer());
+      registry.register(Peek.class, -93, t -> new GenericKryoSerializer());
+      registry.register(Poll.class, -94, t -> new GenericKryoSerializer());
+      registry.register(Element.class, -95, t -> new GenericKryoSerializer());
+      registry.register(Remove.class, -96, t -> new GenericKryoSerializer());
+      registry.register(IsEmpty.class, -97, t -> new GenericKryoSerializer());
+      registry.register(Size.class, -98, t -> new GenericKryoSerializer());
+      registry.register(Clear.class, -99, t -> new GenericKryoSerializer());
     }
   }
 

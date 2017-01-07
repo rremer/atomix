@@ -40,6 +40,20 @@ public @interface ResourceTypeInfo {
   int id();
 
   /**
+   * Returns the resource type name.
+   *
+   * @return The resource type name.
+   */
+  String name();
+
+  /**
+   * Returns the resource service class.
+   *
+   * @return The resource service class.
+   */
+  Class<? extends ResourceService> service();
+
+  /**
    * The resource factory class.
    * <p>
    * Resources must provide a factory class for constructing instances of the resource for a

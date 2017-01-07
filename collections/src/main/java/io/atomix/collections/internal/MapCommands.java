@@ -15,12 +15,12 @@
  */
 package io.atomix.collections.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.catalyst.util.Assert;
 import io.atomix.copycat.Command;
 import io.atomix.copycat.Query;
@@ -43,25 +43,17 @@ public class MapCommands {
   /**
    * Abstract map command.
    */
-  public static abstract class MapCommand<V> implements Command<V>, CatalystSerializable {
+  public static abstract class MapCommand<V> implements Command<V> {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.QUORUM;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
     }
   }
 
   /**
    * Abstract map query.
    */
-  public static abstract class MapQuery<V> implements Query<V>, CatalystSerializable {
+  public static abstract class MapQuery<V> implements Query<V> {
     protected ConsistencyLevel consistency;
 
     protected MapQuery() {
@@ -72,20 +64,9 @@ public class MapCommands {
     }
 
     @Override
-    public void writeObject(BufferOutput<?> output, Serializer serializer) {
-      if (consistency != null) {
-        output.writeByte(consistency.ordinal());
-      } else {
-        output.writeByte(-1);
-      }
-    }
-
-    @Override
-    public void readObject(BufferInput<?> input, Serializer serializer) {
-      int ordinal = input.readByte();
-      if (ordinal != -1) {
-        consistency = ConsistencyLevel.values()[ordinal];
-      }
+    @JsonGetter("consistency")
+    public ConsistencyLevel consistency() {
+      return consistency;
     }
   }
 
@@ -105,18 +86,9 @@ public class MapCommands {
     /**
      * Returns the key.
      */
+    @JsonGetter("key")
     public Object key() {
       return key;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      serializer.writeObject(key, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      key = serializer.readObject(buffer);
     }
   }
 
@@ -141,20 +113,9 @@ public class MapCommands {
     /**
      * Returns the key.
      */
+    @JsonGetter("key")
     public Object key() {
       return key;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(key, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      key = serializer.readObject(buffer);
     }
   }
 
@@ -162,14 +123,16 @@ public class MapCommands {
    * Contains key command.
    */
   public static class ContainsKey extends KeyQuery<Boolean> {
-    public ContainsKey() {
+    ContainsKey() {
     }
 
-    public ContainsKey(Object key) {
+    @JsonCreator
+    public ContainsKey(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public ContainsKey(Object key, ConsistencyLevel consistency) {
+    @JsonCreator
+    public ContainsKey(@JsonProperty("key") Object key, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
     }
   }
@@ -180,14 +143,16 @@ public class MapCommands {
   public static class ContainsValue extends MapQuery<Boolean> {
     protected Object value;
 
-    public ContainsValue() {
+    ContainsValue() {
     }
 
-    public ContainsValue(Object value) {
+    @JsonCreator
+    public ContainsValue(@JsonProperty("value") Object value) {
       this.value = Assert.notNull(value, "value");
     }
 
-    public ContainsValue(Object value, ConsistencyLevel consistency) {
+    @JsonCreator
+    public ContainsValue(@JsonProperty("value") Object value, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
       this.value = Assert.notNull(value, "value");
     }
@@ -195,20 +160,9 @@ public class MapCommands {
     /**
      * Returns the value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -218,10 +172,11 @@ public class MapCommands {
   public static abstract class KeyValueCommand<V> extends KeyCommand<V> {
     protected Object value;
 
-    public KeyValueCommand() {
+    KeyValueCommand() {
     }
 
-    public KeyValueCommand(Object key, Object value) {
+    @JsonCreator
+    public KeyValueCommand(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       super(key);
       this.value = value;
     }
@@ -229,20 +184,9 @@ public class MapCommands {
     /**
      * Returns the command value.
      */
+    @JsonGetter("value")
     public Object value() {
       return value;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(value, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      value = serializer.readObject(buffer);
     }
   }
 
@@ -252,10 +196,10 @@ public class MapCommands {
   public static abstract class TtlCommand<V> extends KeyValueCommand<V> {
     protected long ttl;
 
-    public TtlCommand() {
+    TtlCommand() {
     }
 
-    public TtlCommand(Object key, Object value, long ttl) {
+    protected TtlCommand(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value);
       this.ttl = ttl;
     }
@@ -270,20 +214,9 @@ public class MapCommands {
      *
      * @return The time to live in milliseconds.
      */
+    @JsonGetter("ttl")
     public long ttl() {
       return ttl;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      buffer.writeLong(ttl);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      ttl = buffer.readLong();
     }
   }
 
@@ -291,14 +224,16 @@ public class MapCommands {
    * Put command.
    */
   public static class Put extends TtlCommand<Object> {
-    public Put() {
+    Put() {
     }
 
-    public Put(Object key, Object value) {
+    @JsonCreator
+    public Put(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       this(key, value, 0);
     }
 
-    public Put(Object key, Object value, long ttl) {
+    @JsonCreator
+    public Put(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value, ttl);
     }
   }
@@ -307,14 +242,16 @@ public class MapCommands {
    * Put if absent command.
    */
   public static class PutIfAbsent extends TtlCommand<Object> {
-    public PutIfAbsent() {
+    PutIfAbsent() {
     }
 
-    public PutIfAbsent(Object key, Object value) {
+    @JsonCreator
+    public PutIfAbsent(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       this(key, value, 0);
     }
 
-    public PutIfAbsent(Object key, Object value, long ttl) {
+    @JsonCreator
+    public PutIfAbsent(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value, ttl);
     }
   }
@@ -323,14 +260,16 @@ public class MapCommands {
    * Get query.
    */
   public static class Get extends KeyQuery<Object> {
-    public Get() {
+    Get() {
     }
 
-    public Get(Object key) {
+    @JsonCreator
+    public Get(@JsonProperty("key") Object key) {
       super(key);
     }
 
-    public Get(Object key, ConsistencyLevel consistency) {
+    @JsonCreator
+    public Get(@JsonProperty("key") Object key, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
     }
   }
@@ -339,17 +278,19 @@ public class MapCommands {
    * Get or default query.
    */
   public static class GetOrDefault extends KeyQuery<Object> {
-    private Object defaultValue;
+    protected Object defaultValue;
 
-    public GetOrDefault() {
+    GetOrDefault() {
     }
 
-    public GetOrDefault(Object key, Object defaultValue) {
+    @JsonCreator
+    public GetOrDefault(@JsonProperty("key") Object key, @JsonProperty("default") Object defaultValue) {
       super(key);
       this.defaultValue = defaultValue;
     }
 
-    public GetOrDefault(Object key, Object defaultValue, ConsistencyLevel consistency) {
+    @JsonCreator
+    public GetOrDefault(@JsonProperty("key") Object key, @JsonProperty("default") Object defaultValue, @JsonProperty("consistency") ConsistencyLevel consistency) {
       super(key, consistency);
       this.defaultValue = defaultValue;
     }
@@ -359,20 +300,9 @@ public class MapCommands {
      *
      * @return The default value.
      */
+    @JsonGetter("default")
     public Object defaultValue() {
       return defaultValue;
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      defaultValue = serializer.readObject(buffer);
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(defaultValue, buffer);
     }
   }
 
@@ -380,11 +310,11 @@ public class MapCommands {
    * Remove command.
    */
   public static class Remove extends KeyCommand<Object> {
-
-    public Remove() {
+    Remove() {
     }
 
-    public Remove(Object key) {
+    @JsonCreator
+    public Remove(@JsonProperty("key") Object key) {
       super(key);
     }
 
@@ -398,11 +328,11 @@ public class MapCommands {
    * Remove if absent command.
    */
   public static class RemoveIfPresent extends KeyValueCommand<Boolean> {
-
-    public RemoveIfPresent() {
+    RemoveIfPresent() {
     }
 
-    public RemoveIfPresent(Object key, Object value) {
+    @JsonCreator
+    public RemoveIfPresent(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       super(key, value);
     }
 
@@ -416,14 +346,16 @@ public class MapCommands {
    * Remove command.
    */
   public static class Replace extends TtlCommand<Object> {
-    public Replace() {
+    Replace() {
     }
 
-    public Replace(Object key, Object value) {
+    @JsonCreator
+    public Replace(@JsonProperty("key") Object key, @JsonProperty("value") Object value) {
       this(key, value, 0);
     }
 
-    public Replace(Object key, Object value, long ttl) {
+    @JsonCreator
+    public Replace(@JsonProperty("key") Object key, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value, ttl);
     }
   }
@@ -432,16 +364,18 @@ public class MapCommands {
    * Remove if absent command.
    */
   public static class ReplaceIfPresent extends TtlCommand<Boolean> {
-    private Object replace;
+    protected Object replace;
 
-    public ReplaceIfPresent() {
+    ReplaceIfPresent() {
     }
 
-    public ReplaceIfPresent(Object key, Object replace, Object value) {
+    @JsonCreator
+    public ReplaceIfPresent(@JsonProperty("key") Object key, @JsonProperty("replace") Object replace, @JsonProperty("value") Object value) {
       this(key, replace, value, 0);
     }
 
-    public ReplaceIfPresent(Object key, Object replace, Object value, long ttl) {
+    @JsonCreator
+    public ReplaceIfPresent(@JsonProperty("key") Object key, @JsonProperty("replace") Object replace, @JsonProperty("value") Object value, @JsonProperty("ttl") long ttl) {
       super(key, value, ttl);
       this.replace = replace;
     }
@@ -451,20 +385,9 @@ public class MapCommands {
      *
      * @return The replace value.
      */
+    @JsonGetter("replace")
     public Object replace() {
       return replace;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      super.writeObject(buffer, serializer);
-      serializer.writeObject(replace, buffer);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      super.readObject(buffer, serializer);
-      replace = serializer.readObject(buffer);
     }
   }
 
@@ -472,10 +395,12 @@ public class MapCommands {
    * Is empty query.
    */
   public static class IsEmpty extends MapQuery<Boolean> {
+    @JsonCreator
     public IsEmpty() {
     }
 
-    public IsEmpty(ConsistencyLevel consistency) {
+    @JsonCreator
+    public IsEmpty(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -484,10 +409,12 @@ public class MapCommands {
    * Size query.
    */
   public static class Size extends MapQuery<Integer> {
+    @JsonCreator
     public Size() {
     }
 
-    public Size(ConsistencyLevel consistency) {
+    @JsonCreator
+    public Size(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -496,10 +423,12 @@ public class MapCommands {
    * Values query.
    */
   public static class Values extends MapQuery<Collection> {
+    @JsonCreator
     public Values() {
     }
 
-    public Values(ConsistencyLevel consistency) {
+    @JsonCreator
+    public Values(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -508,10 +437,12 @@ public class MapCommands {
    * Key set query.
    */
   public static class KeySet extends MapQuery<Set> {
+    @JsonCreator
     public KeySet() {
     }
 
-    public KeySet(ConsistencyLevel consistency) {
+    @JsonCreator
+    public KeySet(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -520,10 +451,12 @@ public class MapCommands {
    * Entry set query.
    */
   public static class EntrySet extends MapQuery<Set> {
+    @JsonCreator
     public EntrySet() {
     }
 
-    public EntrySet(ConsistencyLevel consistency) {
+    @JsonCreator
+    public EntrySet(@JsonProperty("consistency") ConsistencyLevel consistency) {
       super(consistency);
     }
   }
@@ -544,22 +477,22 @@ public class MapCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(ContainsKey.class, -65);
-      registry.register(ContainsValue.class, -66);
-      registry.register(Put.class, -67);
-      registry.register(PutIfAbsent.class, -68);
-      registry.register(Get.class, -69);
-      registry.register(GetOrDefault.class, -70);
-      registry.register(Remove.class, -71);
-      registry.register(RemoveIfPresent.class, -72);
-      registry.register(Replace.class, -73);
-      registry.register(ReplaceIfPresent.class, -74);
-      registry.register(Values.class, -155);
-      registry.register(KeySet.class, -156);
-      registry.register(EntrySet.class, -157);
-      registry.register(IsEmpty.class, -75);
-      registry.register(Size.class, -76);
-      registry.register(Clear.class, -77);
+      registry.register(ContainsKey.class, -65, t -> new GenericKryoSerializer());
+      registry.register(ContainsValue.class, -66, t -> new GenericKryoSerializer());
+      registry.register(Put.class, -67, t -> new GenericKryoSerializer());
+      registry.register(PutIfAbsent.class, -68, t -> new GenericKryoSerializer());
+      registry.register(Get.class, -69, t -> new GenericKryoSerializer());
+      registry.register(GetOrDefault.class, -70, t -> new GenericKryoSerializer());
+      registry.register(Remove.class, -71, t -> new GenericKryoSerializer());
+      registry.register(RemoveIfPresent.class, -72, t -> new GenericKryoSerializer());
+      registry.register(Replace.class, -73, t -> new GenericKryoSerializer());
+      registry.register(ReplaceIfPresent.class, -74, t -> new GenericKryoSerializer());
+      registry.register(Values.class, -155, t -> new GenericKryoSerializer());
+      registry.register(KeySet.class, -156, t -> new GenericKryoSerializer());
+      registry.register(EntrySet.class, -157, t -> new GenericKryoSerializer());
+      registry.register(IsEmpty.class, -75, t -> new GenericKryoSerializer());
+      registry.register(Size.class, -76, t -> new GenericKryoSerializer());
+      registry.register(Clear.class, -77, t -> new GenericKryoSerializer());
     }
   }
 

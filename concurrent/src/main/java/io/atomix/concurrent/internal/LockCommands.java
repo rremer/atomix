@@ -15,12 +15,12 @@
  */
 package io.atomix.concurrent.internal;
 
-import io.atomix.catalyst.buffer.BufferInput;
-import io.atomix.catalyst.buffer.BufferOutput;
-import io.atomix.catalyst.serializer.CatalystSerializable;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.atomix.catalyst.serializer.SerializableTypeResolver;
-import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.serializer.SerializerRegistry;
+import io.atomix.catalyst.serializer.kryo.GenericKryoSerializer;
 import io.atomix.copycat.Command;
 
 /**
@@ -38,18 +38,10 @@ public final class LockCommands {
   /**
    * Abstract lock command.
    */
-  public static abstract class LockCommand<V> implements Command<V>, CatalystSerializable {
+  public static abstract class LockCommand<V> implements Command<V> {
     @Override
     public CompactionMode compaction() {
       return CompactionMode.QUORUM;
-    }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
     }
   }
 
@@ -57,13 +49,14 @@ public final class LockCommands {
    * Lock command.
    */
   public static class Lock extends LockCommand<Void> {
-    private int id;
-    private long timeout;
+    protected int id;
+    protected long timeout;
 
-    public Lock() {
+    Lock() {
     }
 
-    public Lock(int id, long timeout) {
+    @JsonCreator
+    public Lock(@JsonProperty("id") int id, @JsonProperty("timeout") long timeout) {
       this.id = id;
       this.timeout = timeout;
     }
@@ -73,6 +66,7 @@ public final class LockCommands {
      *
      * @return The lock ID.
      */
+    @JsonGetter("id")
     public int id() {
       return id;
     }
@@ -82,6 +76,7 @@ public final class LockCommands {
      *
      * @return The try lock timeout in milliseconds.
      */
+    @JsonGetter("timeout")
     public long timeout() {
       return timeout;
     }
@@ -90,29 +85,19 @@ public final class LockCommands {
     public CompactionMode compaction() {
       return timeout > 0 ? CompactionMode.SEQUENTIAL : CompactionMode.QUORUM;
     }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      buffer.writeInt(id).writeLong(timeout);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      id = buffer.readInt();
-      timeout = buffer.readLong();
-    }
   }
 
   /**
    * Unlock command.
    */
   public static class Unlock extends LockCommand<Void> {
-    private int id;
+    protected int id;
 
-    public Unlock() {
+    Unlock() {
     }
 
-    public Unlock(int id) {
+    @JsonCreator
+    public Unlock(@JsonProperty("id") int id) {
       this.id = id;
     }
 
@@ -121,6 +106,7 @@ public final class LockCommands {
      *
      * @return The lock ID.
      */
+    @JsonGetter("id")
     public int id() {
       return id;
     }
@@ -129,29 +115,20 @@ public final class LockCommands {
     public CompactionMode compaction() {
       return CompactionMode.SEQUENTIAL;
     }
-
-    @Override
-    public void writeObject(BufferOutput buffer, Serializer serializer) {
-      buffer.writeInt(id);
-    }
-
-    @Override
-    public void readObject(BufferInput buffer, Serializer serializer) {
-      id = buffer.readInt();
-    }
   }
 
   /**
    * Lock event.
    */
-  public static class LockEvent implements CatalystSerializable {
-    private int id;
-    private long version;
+  public static class LockEvent {
+    protected int id;
+    protected long version;
 
-    public LockEvent() {
+    LockEvent() {
     }
 
-    public LockEvent(int id, long version) {
+    @JsonCreator
+    public LockEvent(@JsonProperty("id") int id, @JsonProperty("version") long version) {
       this.id = id;
       this.version = version;
     }
@@ -161,6 +138,7 @@ public final class LockCommands {
      *
      * @return The lock ID.
      */
+    @JsonGetter("id")
     public int id() {
       return id;
     }
@@ -170,19 +148,9 @@ public final class LockCommands {
      *
      * @return The lock version.
      */
+    @JsonGetter("version")
     public long version() {
       return version;
-    }
-
-    @Override
-    public void writeObject(BufferOutput<?> buffer, Serializer serializer) {
-      buffer.writeInt(id).writeLong(version);
-    }
-
-    @Override
-    public void readObject(BufferInput<?> buffer, Serializer serializer) {
-      id = buffer.readInt();
-      version = buffer.readLong();
     }
 
     @Override
@@ -197,9 +165,9 @@ public final class LockCommands {
   public static class TypeResolver implements SerializableTypeResolver {
     @Override
     public void resolve(SerializerRegistry registry) {
-      registry.register(Lock.class, -143);
-      registry.register(Unlock.class, -144);
-      registry.register(LockEvent.class, -145);
+      registry.register(Lock.class, -143, t -> new GenericKryoSerializer());
+      registry.register(Unlock.class, -144, t -> new GenericKryoSerializer());
+      registry.register(LockEvent.class, -145, t -> new GenericKryoSerializer());
     }
   }
 
