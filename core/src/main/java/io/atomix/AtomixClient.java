@@ -25,7 +25,6 @@ import io.atomix.manager.ResourceClient;
 import io.atomix.manager.ResourceServer;
 import io.atomix.manager.options.ClientOptions;
 import io.atomix.resource.Resource;
-import io.atomix.resource.ResourceType;
 
 import java.util.Arrays;
 import java.util.Collection;

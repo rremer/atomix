@@ -40,7 +40,6 @@ import io.atomix.manager.options.ServerOptions;
 import io.atomix.manager.util.ResourceManagerTypeResolver;
 import io.atomix.resource.Resource;
 import io.atomix.resource.ResourceRegistry;
-import io.atomix.resource.ResourceType;
 
 import java.time.Duration;
 import java.util.*;

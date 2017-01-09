@@ -21,7 +21,6 @@ import io.atomix.catalyst.transport.local.LocalTransport;
 import io.atomix.copycat.server.storage.Storage;
 import io.atomix.copycat.server.storage.StorageLevel;
 import io.atomix.resource.Resource;
-import io.atomix.resource.ResourceType;
 import net.jodah.concurrentunit.ConcurrentTestCase;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
