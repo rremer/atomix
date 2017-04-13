@@ -15,6 +15,7 @@
  */
 package io.atomix.manager;
 
+import io.atomix.catalyst.concurrent.ThreadPoolContext;
 import io.atomix.catalyst.serializer.Serializer;
 import io.atomix.catalyst.transport.Address;
 import io.atomix.catalyst.transport.Transport;
@@ -41,6 +42,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -119,6 +122,7 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
   }
 
   private final CopycatClient client;
+  private final ScheduledExecutorService executorService;
   private final Map<Class<? extends Resource<?>>, ResourceType> types = new ConcurrentHashMap<>();
   private final Map<String, Resource<?>> instances = new HashMap<>();
   private final Map<String, CompletableFuture> futures = new HashMap<>();
@@ -126,8 +130,9 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
   /**
    * @throws NullPointerException if {@code client} or {@code registry} are null
    */
-  public ResourceClient(CopycatClient client) {
+  public ResourceClient(CopycatClient client, ScheduledExecutorService executorService) {
     this.client = Assert.notNull(client, "client");
+    this.executorService = executorService;
   }
 
   /**
@@ -230,7 +235,7 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
     Resource<?> check = instances.get(key);
     if (check == null) {
       ResourceInstance instance = new ResourceInstance(key, type, config, this::close);
-      InstanceClient client = new InstanceClient(instance, this.client);
+      InstanceClient client = new InstanceClient(instance, this.client, new ThreadPoolContext(executorService, this.client.serializer().clone()));
       try {
         check = type.factory().newInstance().createInstance(client, options);
         instances.put(key, check);
@@ -331,6 +336,7 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
   public static class Builder implements io.atomix.catalyst.util.Builder<ResourceClient> {
     private final ResourceRegistry registry = new ResourceRegistry();
     private CopycatClient.Builder clientBuilder;
+    private ScheduledExecutorService executorService;
     private Transport transport;
 
     protected Builder() {
@@ -366,6 +372,17 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
      */
     public Builder withConnectionStrategy(ConnectionStrategy connectionStrategy) {
       clientBuilder.withConnectionStrategy(connectionStrategy);
+      return this;
+    }
+
+    /**
+     * Sets the resource executor service.
+     *
+     * @param executorService The resource executor service.
+     * @return The Atomix builder.
+     */
+    public Builder withExecutorService(ScheduledExecutorService executorService) {
+      this.executorService = Assert.notNull(executorService, "executorService");
       return this;
     }
 
@@ -455,6 +472,10 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
         }
       }
 
+      if (executorService == null) {
+        executorService = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+      }
+
       CopycatClient client = clientBuilder.build();
       client.serializer().resolve(new ResourceManagerTypeResolver());
 
@@ -466,7 +487,7 @@ public class ResourceClient implements ResourceManager<ResourceClient> {
         }
       }
 
-      return new ResourceClient(client);
+      return new ResourceClient(client, executorService);
     }
   }
 

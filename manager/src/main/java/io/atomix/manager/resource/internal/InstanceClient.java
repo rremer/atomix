@@ -15,6 +15,16 @@
  */
 package io.atomix.manager.resource.internal;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Consumer;
+
+import io.atomix.catalyst.concurrent.ComposableFuture;
 import io.atomix.catalyst.concurrent.Futures;
 import io.atomix.catalyst.concurrent.Listener;
 import io.atomix.catalyst.concurrent.ThreadContext;
@@ -32,15 +42,6 @@ import io.atomix.manager.internal.GetResource;
 import io.atomix.resource.Resource;
 import io.atomix.resource.internal.ResourceCommand;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Consumer;
-
 /**
  * Special {@link CopycatClient} implementation for operating on server-side replicated state
  * on behalf of a client-side {@link Resource} instance.
@@ -55,6 +56,7 @@ public final class InstanceClient implements CopycatClient {
   private volatile long resource;
   private final ResourceInstance instance;
   private final CopycatClient client;
+  private final ThreadContext context;
   private volatile Session clientSession;
   private volatile InstanceSession session;
   private volatile State state;
@@ -66,9 +68,10 @@ public final class InstanceClient implements CopycatClient {
   private volatile CompletableFuture<CopycatClient> recoverFuture;
   private volatile CompletableFuture<Void> closeFuture;
 
-  public InstanceClient(ResourceInstance instance, CopycatClient client) {
+  public InstanceClient(ResourceInstance instance, CopycatClient client, ThreadContext context) {
     this.instance = Assert.notNull(instance, "instance");
     this.client = Assert.notNull(client, "client");
+    this.context = context;
     this.state = State.CLOSED;
     this.changeListener = client.onStateChange(this::onStateChange);
   }
@@ -132,17 +135,25 @@ public final class InstanceClient implements CopycatClient {
 
   @Override
   public <T> CompletableFuture<T> submit(Command<T> command) {
+    ComposableFuture<T> future = new ComposableFuture<>();
     if (command instanceof ResourceCommand.Delete) {
-      return client.submit(new InstanceCommand<>(resource, command))
+      client.submit(new InstanceCommand<>(resource, command))
         .thenCompose(v -> client.submit(new DeleteResource(resource)))
-        .thenApply(result -> null);
+        .thenApply(result -> (T) null)
+        .whenCompleteAsync(future, context.executor());
+    } else {
+      client.submit(new InstanceCommand<>(resource, command))
+        .whenCompleteAsync(future, context.executor());
     }
-    return client.submit(new InstanceCommand<>(resource, command));
+    return future;
   }
 
   @Override
   public <T> CompletableFuture<T> submit(Query<T> query) {
-    return client.submit(new InstanceQuery<>(resource, query));
+    ComposableFuture<T> future = new ComposableFuture<>();
+    client.submit(new InstanceQuery<>(resource, query))
+      .whenCompleteAsync(future, context.executor());
+    return future;
   }
 
   @Override
@@ -177,7 +188,7 @@ public final class InstanceClient implements CopycatClient {
       Set<EventListener> listeners = eventListeners.get(event);
       if (listeners != null) {
         for (EventListener listener : listeners) {
-          listener.accept(message.message());
+          context.executor().execute(() -> listener.accept(message.message()));
         }
       }
     }
@@ -189,7 +200,11 @@ public final class InstanceClient implements CopycatClient {
       return Futures.exceptionalFuture(new IllegalStateException("client already open"));
 
     if (openFuture == null) {
-      openFuture = client.submit(new GetResource(instance.key(), instance.type(), instance.config())).thenApply(this::completeOpen);
+      ComposableFuture<CopycatClient> future = new ComposableFuture<>();
+      openFuture = future;
+      client.submit(new GetResource(instance.key(), instance.type(), instance.config()))
+        .thenApply(this::completeOpen)
+        .whenCompleteAsync(future, context.executor());
     }
     return openFuture;
   }
@@ -223,7 +238,11 @@ public final class InstanceClient implements CopycatClient {
       return Futures.exceptionalFuture(new IllegalStateException("client not suspended"));
 
     if (recoverFuture == null) {
-      recoverFuture = client.submit(new GetResource(instance.key(), instance.type(), instance.config())).thenApply(this::completeOpen);
+      ComposableFuture<CopycatClient> future = new ComposableFuture<>();
+      recoverFuture = future;
+      client.submit(new GetResource(instance.key(), instance.type(), instance.config()))
+        .thenApply(this::completeOpen)
+        .whenCompleteAsync(future, context.executor());
     }
     return recoverFuture;
   }
@@ -234,7 +253,9 @@ public final class InstanceClient implements CopycatClient {
       return Futures.exceptionalFuture(new IllegalStateException("client already closed"));
 
     if (closeFuture == null) {
-      closeFuture = client.submit(new CloseResource(resource))
+      ComposableFuture<Void> future = new ComposableFuture<>();
+      closeFuture = future;
+      client.submit(new CloseResource(resource))
         .whenComplete((result, error) -> {
           synchronized (this) {
             instance.close();
@@ -247,7 +268,7 @@ public final class InstanceClient implements CopycatClient {
             changeListeners.forEach(l -> l.accept(State.CLOSED));
             closeFuture = null;
           }
-        });
+        }).whenCompleteAsync(future, context.executor());
     }
     return closeFuture;
   }
